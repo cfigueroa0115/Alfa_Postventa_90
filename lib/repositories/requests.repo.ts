@@ -79,3 +79,35 @@ export async function getTotalRequests(): Promise<number> {
 
   return Number(result?.count) || 0;
 }
+
+export async function createRequestIdempotently(data: {
+  sessionId: string;
+  trackingCode: string;
+  formData: unknown;
+  status?: string;
+  idempotencyKey: string;
+}): Promise<{ request: DemoRequest; created: boolean }> {
+  // Try to insert - onConflictDoNothing for idempotency_key
+  const [inserted] = await db
+    .insert(demoRequests)
+    .values({
+      sessionId: data.sessionId,
+      trackingCode: data.trackingCode,
+      formData: data.formData,
+      status: data.status ?? 'radicado',
+      idempotencyKey: data.idempotencyKey,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (inserted) {
+    return { request: inserted, created: true };
+  }
+
+  // Conflict means it already exists
+  const existing = await getRequestByIdempotencyKey(data.idempotencyKey);
+  if (!existing) {
+    throw new Error('Error de concurrencia al crear la solicitud');
+  }
+  return { request: existing, created: false };
+}

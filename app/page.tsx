@@ -25,7 +25,7 @@ const problems = [
 ];
 
 const solutionSteps = [
-  { number: 1, title: 'Entender y medir', description: 'Diagnosticar el estado actual con datos reales.' },
+  { number: 1, title: 'Entender y medir', description: 'Diagnosticar el canal mediante analítica, evidencia operativa y voz del cliente.' },
   { number: 2, title: 'Documentar brechas', description: 'Identificar puntos de dolor y oportunidades.' },
   { number: 3, title: 'Diseñar solución', description: 'Crear el flujo digital que resuelve cada brecha.' },
   { number: 4, title: 'Planear ejecución', description: 'Definir roadmap con entregables medibles.' },

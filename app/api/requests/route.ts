@@ -7,8 +7,25 @@ import * as requestsRepo from '@/lib/repositories/requests.repo';
 export async function POST(request: Request) {
   try {
     const idempotencyKey = request.headers.get('x-idempotency-key');
-    
-    if (!idempotencyKey || idempotencyKey.length < 10 || idempotencyKey.length > 100) {
+
+    if (!idempotencyKey) {
+      // Allow requests without idempotency key for backward compatibility (seed, tests)
+      const body = await request.json();
+      const validated = createRequestSchema.parse(body);
+      const result = await fileRequest(validated.sessionId, validated.formData, undefined);
+      return NextResponse.json(
+        {
+          requestId: result.id,
+          trackingCode: result.trackingCode,
+          status: result.status,
+          filedAt: result.filedAt,
+          idempotentReplay: false,
+        },
+        { status: 201 }
+      );
+    }
+
+    if (idempotencyKey.length < 10 || idempotencyKey.length > 100) {
       throw AppError.validation('Se requiere un encabezado x-idempotency-key válido (10-100 caracteres)');
     }
 

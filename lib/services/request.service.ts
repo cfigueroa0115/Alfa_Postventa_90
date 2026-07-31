@@ -17,35 +17,70 @@ export async function fileRequest(sessionId: string, formData: UpdateContactForm
   const today = new Date();
   const trackingCode = generateTrackingCode(today);
 
-  // Create request
-  const request = await requestsRepo.createRequest({
-    sessionId,
-    trackingCode,
-    formData: maskedFormData,
-    status: 'radicado',
-    idempotencyKey,
-  });
+  if (idempotencyKey) {
+    const { request, created } = await requestsRepo.createRequestIdempotently({
+      sessionId,
+      trackingCode,
+      formData: maskedFormData,
+      status: 'radicado',
+      idempotencyKey,
+    });
 
-  if (!request) {
-    throw AppError.database('No se pudo crear la solicitud');
+    if (!created) {
+      // Idempotent replay - return existing without side effects
+      return request;
+    }
+
+    if (!request) {
+      throw AppError.database('No se pudo crear la solicitud');
+    }
+
+    // Create initial status history entry
+    await statusHistoryRepo.createStatusEntry({
+      requestId: request.id,
+      status: 'radicado',
+      description: STATUS_DESCRIPTIONS.radicado,
+    });
+
+    // Record event
+    await eventsRepo.createEvent({
+      sessionId,
+      eventType: 'request_filed',
+      step: 'confirmacion',
+      metadata: { trackingCode },
+    });
+
+    return request;
+  } else {
+    // No idempotency key — backward compat path (seed, tests)
+    const request = await requestsRepo.createRequest({
+      sessionId,
+      trackingCode,
+      formData: maskedFormData,
+      status: 'radicado',
+    });
+
+    if (!request) {
+      throw AppError.database('No se pudo crear la solicitud');
+    }
+
+    // Create initial status history entry
+    await statusHistoryRepo.createStatusEntry({
+      requestId: request.id,
+      status: 'radicado',
+      description: STATUS_DESCRIPTIONS.radicado,
+    });
+
+    // Record event
+    await eventsRepo.createEvent({
+      sessionId,
+      eventType: 'request_filed',
+      step: 'confirmacion',
+      metadata: { trackingCode },
+    });
+
+    return request;
   }
-
-  // Create initial status history entry
-  await statusHistoryRepo.createStatusEntry({
-    requestId: request.id,
-    status: 'radicado',
-    description: STATUS_DESCRIPTIONS.radicado,
-  });
-
-  // Record event
-  await eventsRepo.createEvent({
-    sessionId,
-    eventType: 'request_filed',
-    step: 'confirmacion',
-    metadata: { trackingCode },
-  });
-
-  return request;
 }
 
 export async function getRequestWithTimeline(trackingCode: string) {

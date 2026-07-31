@@ -26,19 +26,21 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 interface MetricsData {
-  kpis: {
-    totalSessions: number;
-    processesSelected: number;
-    requirementsConfirmed: number;
-    formsStarted: number;
-    requestsFiled: number;
-  };
+  kpis: { totalSessions: number; processesSelected: number; requirementsConfirmed: number; formsStarted: number; requestsFiled: number; };
+  filingRate: number;
   completionRate: number;
-  averageCES: number;
-  averageCompletionTimeSeconds: number;
+  averageCES: number | null;
+  cesResponseCount: number;
+  averageCompletionTimeSeconds: number | null;
+  medianCompletionTimeSeconds: number | null;
+  p90CompletionTimeSeconds: number | null;
+  completionTimeSampleSize: number;
   funnel: Array<{ step: string; count: number; percentage: number }>;
   abandonmentByStep: Array<{ step: string; rate: number }>;
+  statusDistribution: Array<{ status: string; label: string; count: number; percentage: number }>;
+  cesDistribution: Array<{ score: number; count: number; percentage: number }>;
   isSynthetic: boolean;
+  metadata: { generatedAt: string; dataSource: string; uniqueSessions: boolean };
 }
 
 type PageState = 'loading' | 'success' | 'error';
@@ -101,27 +103,20 @@ export default function MetricasPage() {
     abandono: Math.round(s.rate * 100),
   }));
 
-  // CES distribution (simulated from average for demo)
-  const cesData = [
-    { score: '1', count: 0 },
-    { score: '2', count: 1 },
-    { score: '3', count: 2 },
-    { score: '4', count: 4 },
-    { score: '5', count: 6 },
-    { score: '6', count: 8 },
-    { score: '7', count: 5 },
-  ];
+  // CES distribution from real data
+  const cesData = (data.cesDistribution ?? []).map(c => ({
+    score: String(c.score),
+    count: c.count,
+  }));
 
-  // Status distribution for donut
-  const statusData = [
-    { name: 'Radicado', value: Math.round(data.kpis.requestsFiled * 0.2) },
-    { name: 'En validación', value: Math.round(data.kpis.requestsFiled * 0.25) },
-    { name: 'Procesado', value: Math.round(data.kpis.requestsFiled * 0.25) },
-    { name: 'Finalizado', value: Math.round(data.kpis.requestsFiled * 0.3) },
-  ];
+  // Status distribution from real data
+  const statusData = (data.statusDistribution ?? []).map(s => ({
+    name: s.label,
+    value: s.count,
+  }));
 
   // Determine completion time display
-  const hasRealTimeData = data.averageCompletionTimeSeconds > 0 && !data.isSynthetic;
+  const hasRealTimeData = data.averageCompletionTimeSeconds !== null && data.averageCompletionTimeSeconds > 0;
 
   return (
     <main className="min-h-screen bg-alfa-background p-4 md:p-8">
@@ -153,7 +148,7 @@ export default function MetricasPage() {
             <p className="text-xs text-gray-400">{data.kpis.requestsFiled}/{data.kpis.totalSessions} sesiones</p>
           </Card>
           <KPICard label="Sesiones únicas" value={data.kpis.totalSessions} icon="📊" />
-          <KPICard label="CES promedio" value={Number(data.averageCES.toFixed(1))} icon="⭐" suffix="/7" />
+          <KPICard label="CES promedio" value={data.averageCES !== null ? Number(data.averageCES.toFixed(1)) : 0} icon="⭐" suffix="/7" />
           <KPICard label="Formularios" value={data.kpis.formsStarted} icon="📝" />
           <KPICard label="Radicadas" value={data.kpis.requestsFiled} icon="✅" />
         </div>
@@ -163,7 +158,7 @@ export default function MetricasPage() {
           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Tiempo promedio de radicación</p>
           {hasRealTimeData ? (
             <>
-              <p className="text-3xl font-bold text-alfa-navy">{formatTime(data.averageCompletionTimeSeconds)}</p>
+              <p className="text-3xl font-bold text-alfa-navy">{formatTime(data.averageCompletionTimeSeconds!)}</p>
               <p className="text-xs text-alfa-green">Calculado con datos reales</p>
             </>
           ) : (
@@ -261,7 +256,7 @@ export default function MetricasPage() {
               <p className="text-xs text-gray-500">¿Qué tan fácil percibe el usuario la experiencia?</p>
             </div>
             <div className="text-center mb-2">
-              <span className="text-3xl font-bold text-alfa-green">{data.averageCES.toFixed(1)}</span>
+            <span className="text-3xl font-bold text-alfa-green">{data.averageCES !== null ? data.averageCES.toFixed(1) : '—'}</span>
               <span className="text-sm text-gray-400 ml-1">/7 promedio</span>
             </div>
             <div className="h-44">
@@ -298,10 +293,10 @@ export default function MetricasPage() {
             />
             <InsightCard
               title="Esfuerzo percibido"
-              finding={data.averageCES > 0
+              finding={data.averageCES !== null && data.averageCES > 0
                 ? `El CES promedio es ${data.averageCES.toFixed(1)}/7. ${data.averageCES >= 5 ? 'La experiencia se percibe como fluida.' : 'Existe oportunidad de mejora.'}`
                 : 'Aún no hay respuestas CES suficientes.'}
-              action={data.averageCES >= 5 ? "Mantener la experiencia actual y optimizar tiempos." : "Investigar puntos de fricción mediante feedback cualitativo."}
+              action={data.averageCES !== null && data.averageCES >= 5 ? "Mantener la experiencia actual y optimizar tiempos." : "Investigar puntos de fricción mediante feedback cualitativo."}
             />
           </div>
         </Card>
@@ -323,7 +318,7 @@ export default function MetricasPage() {
             <div className="space-y-1">
               <p className="font-medium text-alfa-green">Observado en prototipo</p>
               <p className="text-gray-500">Tasa radicación: {Math.round(data.completionRate * 100)}%</p>
-              <p className="text-gray-500">CES: {data.averageCES.toFixed(1)}/7</p>
+              <p className="text-gray-500">CES: {data.averageCES !== null ? data.averageCES.toFixed(1) : '—'}/7</p>
               <p className="text-gray-500">Trazabilidad: Completa</p>
             </div>
             <div className="space-y-1">
