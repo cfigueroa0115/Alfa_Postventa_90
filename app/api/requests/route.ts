@@ -5,8 +5,13 @@ import { fileRequest } from '@/lib/services/request.service';
 
 export async function POST(request: Request) {
   try {
+    const idempotencyKey = request.headers.get('x-idempotency-key');
     const body = await request.json();
     const validated = createRequestSchema.parse(body);
+
+    // Idempotency key is accepted for future deduplication support.
+    // Current protection relies on client-side loading state to prevent double-submit.
+    void idempotencyKey;
 
     const result = await fileRequest(validated.sessionId, validated.formData);
 

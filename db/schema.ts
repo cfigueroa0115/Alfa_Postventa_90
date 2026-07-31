@@ -121,7 +121,7 @@ export const feedback = pgTable(
     trackingCodeIdx: index('idx_feedback_tracking_code').on(table.trackingCode),
     cesScoreCheck: check(
       'chk_feedback_ces_score',
-      sql`${table.cesScore} >= 1 AND ${table.cesScore} <= 5`
+      sql`${table.cesScore} >= 1 AND ${table.cesScore} <= 7`
     ),
   })
 );

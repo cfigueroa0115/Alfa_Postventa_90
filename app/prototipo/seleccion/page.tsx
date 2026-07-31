@@ -100,6 +100,7 @@ export default function SeleccionPage() {
       setToastMessage(
         'Este proceso estará disponible en futuras iteraciones.'
       );
+      await tracker.track('future_feature_viewed', 'seleccion', { feature: option.id });
       return;
     }
 
@@ -125,7 +126,6 @@ export default function SeleccionPage() {
               key={option.id}
               type="button"
               onClick={() => handleSelect(option)}
-              disabled={!option.active}
               aria-disabled={!option.active}
               className={[
                 'w-full text-left transition-all',

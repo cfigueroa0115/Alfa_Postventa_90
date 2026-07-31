@@ -154,7 +154,7 @@ export default function ConfirmacionPage() {
           <ol className="space-y-2 text-sm text-gray-600 list-decimal list-inside">
             <li>Tu solicitud será validada por nuestro equipo</li>
             <li>Puedes consultar el estado en cualquier momento con tu código</li>
-            <li>Recibirás una notificación cuando el trámite esté completo</li>
+            <li>En una implementación productiva, el cliente recibiría una notificación al cambiar el estado.</li>
           </ol>
           <Link
             href={`/seguimiento/${radicado}`}
@@ -189,23 +189,21 @@ export default function ConfirmacionPage() {
               Tu opinión nos ayuda a mejorar. (Opcional)
             </p>
 
-            {/* Star rating */}
-            <div className="flex items-center justify-center gap-2" role="radiogroup" aria-label="Calificación de esfuerzo">
-              {[1, 2, 3, 4, 5].map((score) => (
+            {/* CES Scale 1-7 */}
+            <div className="flex items-center justify-center gap-1.5" role="radiogroup" aria-label="Calificación de esfuerzo">
+              {[1, 2, 3, 4, 5, 6, 7].map((score) => (
                 <button
                   key={score}
                   type="button"
                   onClick={() => setCesScore(score)}
                   className={[
-                    'w-10 h-10 rounded-full text-lg font-bold transition-all',
+                    'w-9 h-9 rounded-lg text-sm font-semibold transition-all border',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alfa-green focus-visible:ring-offset-2',
                     cesScore === score
-                      ? 'bg-alfa-gold text-white scale-110'
-                      : cesScore && score <= cesScore
-                        ? 'bg-alfa-gold/60 text-white'
-                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200',
+                      ? 'bg-alfa-green text-white border-alfa-green scale-110'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-alfa-green hover:text-alfa-green',
                   ].join(' ')}
-                  aria-label={`${score} de 5`}
+                  aria-label={`${score} de 7`}
                   role="radio"
                   aria-checked={cesScore === score}
                 >
@@ -214,8 +212,8 @@ export default function ConfirmacionPage() {
               ))}
             </div>
             <div className="flex justify-between text-xs text-gray-400 px-1">
-              <span>Muy difícil</span>
-              <span>Muy fácil</span>
+              <span>1 = Muy difícil</span>
+              <span>7 = Muy fácil</span>
             </div>
 
             {/* Comment */}

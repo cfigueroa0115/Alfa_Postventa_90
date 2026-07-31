@@ -65,6 +65,7 @@ export const validEventTypes = [
   'tracking_consulted',
   'feedback_submitted',
   'status_simulated',
+  'future_feature_viewed',
 ] as const;
 
 export const trackingEventSchema = z.object({
@@ -85,7 +86,7 @@ export const feedbackSchema = z.object({
     .number()
     .int('La calificación debe ser un número entero')
     .min(1, 'La calificación mínima es 1')
-    .max(5, 'La calificación máxima es 5'),
+    .max(7, 'La calificación máxima es 7'),
   comment: z
     .string()
     .max(1000, 'El comentario no puede exceder 1000 caracteres')
