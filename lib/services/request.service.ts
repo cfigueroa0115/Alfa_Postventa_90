@@ -3,11 +3,15 @@ import { generateTrackingCode } from '@/lib/tracking-code';
 import { getNextStatus, STATUS_DESCRIPTIONS, type RequestStatus } from './state-machine';
 import { AppError } from '@/lib/errors';
 import { sanitizeFormData } from '@/lib/validation';
+import { sanitizeDemoRequest } from '@/lib/privacy';
 import type { UpdateContactFormData } from '@/lib/validation';
 
 export async function fileRequest(sessionId: string, formData: UpdateContactFormData) {
   // Sanitize form data
   const sanitized = sanitizeFormData(formData as unknown as Record<string, unknown>);
+
+  // Mask sensitive data before persisting
+  const maskedFormData = sanitizeDemoRequest(sanitized);
 
   // Generate tracking code
   const today = new Date();
@@ -17,7 +21,7 @@ export async function fileRequest(sessionId: string, formData: UpdateContactForm
   const request = await requestsRepo.createRequest({
     sessionId,
     trackingCode,
-    formData: sanitized,
+    formData: maskedFormData,
     status: 'radicado',
   });
 

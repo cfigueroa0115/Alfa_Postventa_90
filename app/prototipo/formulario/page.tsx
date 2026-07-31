@@ -14,6 +14,7 @@ import {
   type UpdateContactDraft,
 } from '@/lib/forms';
 import { Button, Input, Card } from '@/components/ui';
+import { DemoControls } from '@/components/journey';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const DEBOUNCE_MS = 500;
@@ -435,6 +436,8 @@ function FormularioContent() {
             </div>
           </Card>
         )}
+
+        <DemoControls />
 
         <Card variant="elevated" className="bg-white">
           <div className="space-y-6">
