@@ -6,7 +6,7 @@ import { sanitizeFormData } from '@/lib/validation';
 import { sanitizeDemoRequest } from '@/lib/privacy';
 import type { UpdateContactFormData } from '@/lib/validation';
 
-export async function fileRequest(sessionId: string, formData: UpdateContactFormData) {
+export async function fileRequest(sessionId: string, formData: UpdateContactFormData, idempotencyKey?: string) {
   // Sanitize form data
   const sanitized = sanitizeFormData(formData as unknown as Record<string, unknown>);
 
@@ -23,6 +23,7 @@ export async function fileRequest(sessionId: string, formData: UpdateContactForm
     trackingCode,
     formData: maskedFormData,
     status: 'radicado',
+    idempotencyKey,
   });
 
   if (!request) {

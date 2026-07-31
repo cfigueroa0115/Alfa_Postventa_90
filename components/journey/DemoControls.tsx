@@ -1,35 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { saveDraft, loadDraft, clearDraft, createInitialDraft, type UpdateContactDraft } from '@/lib/forms';
+import { clearDraft } from '@/lib/forms';
 import { tracker } from '@/lib/analytics';
 import { Button } from '@/components/ui';
 
-export function DemoControls() {
+interface DemoControlsProps {
+  onLoadDemoData?: () => void;
+}
+
+export function DemoControls({ onLoadDemoData }: DemoControlsProps) {
   const [showToast, setShowToast] = useState<string | null>(null);
 
   async function handleLoadDemoData() {
-    const existing = loadDraft();
-    const draft: UpdateContactDraft = existing ?? createInitialDraft();
-    
-    draft.data = {
-      ...draft.data,
-      newEmail: 'nuevo.cliente@ejemplo.com',
-      confirmEmail: 'nuevo.cliente@ejemplo.com',
-      newPhone: '3001234567',
-      city: 'bogota',
-      contactPreference: 'email',
-    };
-    draft.savedAt = new Date().toISOString();
-    
-    saveDraft(draft);
+    if (onLoadDemoData) {
+      onLoadDemoData();
+    }
     await tracker.track('form_step_changed', 'demo_controls', { action: 'demo_data_loaded' });
-    
     setShowToast('Datos demo cargados correctamente');
     setTimeout(() => setShowToast(null), 3000);
   }
 
   async function handleReset() {
+    if (!confirm('¿Reiniciar la experiencia? Se perderá el progreso actual.')) return;
     clearDraft();
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('demo_session_id');

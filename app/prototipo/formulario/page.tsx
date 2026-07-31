@@ -437,7 +437,26 @@ function FormularioContent() {
           </Card>
         )}
 
-        <DemoControls />
+        <DemoControls onLoadDemoData={() => {
+          if (!draft) return;
+          const updatedDraft: UpdateContactDraft = {
+            ...draft,
+            data: {
+              ...draft.data,
+              newEmail: 'nuevo.cliente@ejemplo.com',
+              confirmEmail: 'nuevo.cliente@ejemplo.com',
+              newPhone: '3001234567',
+              city: 'bogota',
+              contactPreference: 'email',
+            },
+            currentStep: 2,
+            savedAt: new Date().toISOString(),
+          };
+          setDraft(updatedDraft);
+          setCurrentStep(2);
+          saveDraft(updatedDraft);
+          setErrors({});
+        }} />
 
         <Card variant="elevated" className="bg-white">
           <div className="space-y-6">

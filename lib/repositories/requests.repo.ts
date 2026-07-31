@@ -7,6 +7,7 @@ export async function createRequest(data: {
   trackingCode: string;
   formData: unknown;
   status?: string;
+  idempotencyKey?: string;
 }): Promise<DemoRequest> {
   const [request] = await db
     .insert(demoRequests)
@@ -15,10 +16,20 @@ export async function createRequest(data: {
       trackingCode: data.trackingCode,
       formData: data.formData,
       status: data.status ?? 'radicado',
+      idempotencyKey: data.idempotencyKey,
     })
     .returning();
 
   return request;
+}
+
+export async function getRequestByIdempotencyKey(key: string): Promise<DemoRequest | null> {
+  const [request] = await db
+    .select()
+    .from(demoRequests)
+    .where(eq(demoRequests.idempotencyKey, key))
+    .limit(1);
+  return request ?? null;
 }
 
 export async function getRequestByTrackingCode(trackingCode: string): Promise<DemoRequest | null> {

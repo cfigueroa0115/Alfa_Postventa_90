@@ -44,6 +44,7 @@ export const demoRequests = pgTable(
     status: varchar('status', { length: 20 }).notNull().default('radicado'),
     formData: jsonb('form_data').notNull(),
     draftData: jsonb('draft_data'),
+    idempotencyKey: varchar('idempotency_key', { length: 100 }),
     filedAt: timestamp('filed_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -51,6 +52,7 @@ export const demoRequests = pgTable(
   (table) => ({
     trackingCodeIdx: index('idx_requests_tracking_code').on(table.trackingCode),
     sessionIdIdx: index('idx_requests_session_id').on(table.sessionId),
+    idempotencyKeyIdx: index('idx_requests_idempotency_key').on(table.idempotencyKey),
     statusCheck: check(
       'chk_requests_status',
       sql`${table.status} IN ('radicado', 'en_validacion', 'procesado', 'finalizado')`

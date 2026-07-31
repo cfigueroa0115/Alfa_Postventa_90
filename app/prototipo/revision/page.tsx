@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { tracker } from '@/lib/analytics';
 import { loadDraft, clearDraft } from '@/lib/forms';
@@ -45,6 +45,7 @@ export default function RevisionPage() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<ApiErrorDetail[]>([]);
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
     const draft = loadDraft();
@@ -75,7 +76,10 @@ export default function RevisionPage() {
 
       const response = await fetch('/api/requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-idempotency-key': idempotencyKeyRef.current,
+        },
         body: JSON.stringify({ sessionId, formData }),
       });
 
