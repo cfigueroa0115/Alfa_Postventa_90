@@ -11,8 +11,7 @@ export async function fileRequest(sessionId: string, formData: UpdateContactForm
 
   // Generate tracking code
   const today = new Date();
-  const sequence = await requestsRepo.getNextSequenceForDate(today);
-  const trackingCode = generateTrackingCode(today, sequence);
+  const trackingCode = generateTrackingCode(today);
 
   // Create request
   const request = await requestsRepo.createRequest({

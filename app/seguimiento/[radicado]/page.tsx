@@ -120,7 +120,6 @@ export default function SeguimientoDetalPage() {
   }
 
   // Success state
-  const currentStatusIndex = REQUEST_STATUSES.indexOf(data!.status);
   const isFinal = data!.status === 'finalizado';
 
   return (

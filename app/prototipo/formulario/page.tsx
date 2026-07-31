@@ -1,21 +1,24 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 import { tracker } from '@/lib/analytics';
 import { emailSchema, colombianPhoneSchema } from '@/lib/validation/schemas';
+import type { UpdateContactFormData } from '@/lib/validation';
+import {
+  createInitialDraft,
+  saveDraft,
+  loadDraft,
+  DEMO_DATA,
+  type UpdateContactDraft,
+} from '@/lib/forms';
 import { Button, Input, Card } from '@/components/ui';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'alfa_postventa_draft';
 const DEBOUNCE_MS = 500;
 
-const STEP_LABELS = [
-  'Identificación',
-  'Datos actuales',
-  'Datos nuevos',
-];
+const STEP_LABELS = ['Identificación', 'Datos actuales', 'Datos nuevos'];
 
 const COLOMBIAN_CITIES = [
   { value: 'bogota', label: 'Bogotá' },
@@ -38,20 +41,7 @@ const CONTACT_PREFERENCES = [
   { value: 'ambos', label: 'Ambos' },
 ];
 
-// ─── Demo pre-loaded data ────────────────────────────────────────────────────
-const DEMO_IDENTIFICATION = {
-  documentType: 'CC' as const,
-  documentNumber: '***4567',
-  policyReference: 'DEMO-2026-001',
-};
-
-const DEMO_CURRENT_DATA = {
-  fullName: 'Cliente Demo',
-  currentEmail: 'cliente.demo@ejemplo.com',
-  currentPhone: '300 *** 0000',
-};
-
-// ─── Step-level Zod schemas ──────────────────────────────────────────────────
+// ─── Step-level Zod schema for step 3 ────────────────────────────────────────
 const step3Schema = z
   .object({
     newEmail: emailSchema,
@@ -70,38 +60,25 @@ const step3Schema = z
     }
   );
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-interface Step3Data {
-  newEmail: string;
-  confirmEmail: string;
-  newPhone: string;
-  city: string;
-  contactPreference: string;
-}
-
-interface FormDraft {
-  step: number;
-  step3: Step3Data;
-  timestamp: number;
-}
-
-// ─── Component ───────────────────────────────────────────────────────────────
-export default function FormularioPage() {
+// ─── Inner component that uses useSearchParams ───────────────────────────────
+function FormularioContent() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [step3Data, setStep3Data] = useState<Step3Data>({
-    newEmail: '',
-    confirmEmail: '',
-    newPhone: '',
-    city: '',
-    contactPreference: '',
-  });
+  const searchParams = useSearchParams();
+
+  // Parse query params for step navigation and returnTo
+  const initialStep = searchParams.get('step')
+    ? Math.min(Math.max(parseInt(searchParams.get('step')!) - 1, 0), 2)
+    : undefined;
+  const returnTo = searchParams.get('returnTo');
+
+  const [currentStep, setCurrentStep] = useState(initialStep ?? 0);
+  const [draft, setDraft] = useState<UpdateContactDraft | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ─── Track form_started on mount ────────────────────────────────────────────
+  // ─── Track form_started on mount ──────────────────────────────────────────
   useEffect(() => {
     if (!hasTrackedStart) {
       tracker.track('form_started', 'formulario');
@@ -109,69 +86,68 @@ export default function FormularioPage() {
     }
   }, [hasTrackedStart]);
 
-  // ─── Check localStorage for existing draft on mount ─────────────────────────
+  // ─── Load draft on mount ──────────────────────────────────────────────────
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const draft: FormDraft = JSON.parse(stored);
-        if (draft.step3 && draft.timestamp) {
-          setShowRestoreDialog(true);
-        }
+    const existing = loadDraft();
+    if (existing) {
+      // If coming from revision (has step param), just load the draft directly
+      if (initialStep !== undefined) {
+        setDraft(existing);
+      } else {
+        // Normal entry: ask to restore
+        setShowRestoreDialog(true);
+        setDraft(existing);
       }
-    } catch {
-      // Ignore parse errors
+    } else {
+      // No existing draft, create a new one
+      const newDraft = createInitialDraft();
+      setDraft(newDraft);
+      saveDraft(newDraft);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Restore draft from localStorage ────────────────────────────────────────
+  // ─── Restore draft ────────────────────────────────────────────────────────
   function handleRestore() {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const draft: FormDraft = JSON.parse(stored);
-        if (draft.step3) {
-          setStep3Data(draft.step3);
-          setCurrentStep(draft.step);
-        }
-      }
-    } catch {
-      // Ignore errors
+    // Draft is already loaded in state
+    if (draft && initialStep === undefined) {
+      setCurrentStep(draft.currentStep);
     }
     setShowRestoreDialog(false);
   }
 
   function handleDiscardDraft() {
-    localStorage.removeItem(STORAGE_KEY);
+    const newDraft = createInitialDraft();
+    setDraft(newDraft);
+    setCurrentStep(0);
+    saveDraft(newDraft);
     setShowRestoreDialog(false);
   }
 
-  // ─── Save to localStorage (debounced) ───────────────────────────────────────
-  const saveDraft = useCallback(
-    (data: Step3Data, step: number) => {
+  // ─── Persist draft (debounced) ────────────────────────────────────────────
+  const persistDraft = useCallback(
+    (updatedDraft: UpdateContactDraft) => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
       debounceTimerRef.current = setTimeout(() => {
-        try {
-          const draft: FormDraft = {
-            step,
-            step3: data,
-            timestamp: Date.now(),
-          };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-        } catch {
-          // Ignore storage errors
-        }
+        saveDraft(updatedDraft);
       }, DEBOUNCE_MS);
     },
     []
   );
 
-  // ─── Handle field changes for step 3 ───────────────────────────────────────
-  function handleStep3Change(field: keyof Step3Data, value: string) {
-    const updated = { ...step3Data, [field]: value };
-    setStep3Data(updated);
+  // ─── Handle field changes for step 3 ─────────────────────────────────────
+  function handleFieldChange(field: keyof UpdateContactFormData, value: string) {
+    if (!draft) return;
+    const updatedData = { ...draft.data, [field]: value };
+    const updatedDraft: UpdateContactDraft = {
+      ...draft,
+      data: updatedData,
+      savedAt: new Date().toISOString(),
+    };
+    setDraft(updatedDraft);
+
     // Clear error for the field being edited
     if (errors[field]) {
       setErrors((prev) => {
@@ -180,16 +156,26 @@ export default function FormularioPage() {
         return next;
       });
     }
-    saveDraft(updated, currentStep);
+
+    persistDraft(updatedDraft);
   }
 
-  // ─── Validate current step ─────────────────────────────────────────────────
+  // ─── Validate current step ────────────────────────────────────────────────
   function validateCurrentStep(): boolean {
     // Steps 0 and 1 are read-only, always valid
     if (currentStep < 2) return true;
 
-    // Step 2 (index 2) is the editable step (Step 3 in display)
-    const result = step3Schema.safeParse(step3Data);
+    if (!draft) return false;
+
+    // Step 2 (index 2) is the editable step
+    const result = step3Schema.safeParse({
+      newEmail: draft.data.newEmail,
+      confirmEmail: draft.data.confirmEmail,
+      newPhone: draft.data.newPhone,
+      city: draft.data.city,
+      contactPreference: draft.data.contactPreference,
+    });
+
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       result.error.errors.forEach((err) => {
@@ -206,37 +192,66 @@ export default function FormularioPage() {
     return true;
   }
 
-  // ─── Navigation ─────────────────────────────────────────────────────────────
+  // ─── Navigation ──────────────────────────────────────────────────────────
   function handleContinue() {
     if (!validateCurrentStep()) return;
+    if (!draft) return;
+
+    // If returnTo=revision, navigate back to revision after completing this step
+    if (returnTo === 'revision') {
+      const finalDraft: UpdateContactDraft = {
+        ...draft,
+        currentStep,
+        savedAt: new Date().toISOString(),
+      };
+      saveDraft(finalDraft);
+      router.push('/prototipo/revision');
+      return;
+    }
 
     if (currentStep < 2) {
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
+
+      // Update draft step
+      const updatedDraft: UpdateContactDraft = {
+        ...draft,
+        currentStep: nextStep,
+        savedAt: new Date().toISOString(),
+      };
+      setDraft(updatedDraft);
+      saveDraft(updatedDraft);
+
       tracker.track('form_step_changed', `paso_${nextStep + 1}`, {
         fromStep: currentStep + 1,
         toStep: nextStep + 1,
       });
     } else {
       // Last step — save final draft and navigate to revision
-      try {
-        const draft: FormDraft = {
-          step: currentStep,
-          step3: step3Data,
-          timestamp: Date.now(),
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-      } catch {
-        // Ignore storage errors
-      }
+      const finalDraft: UpdateContactDraft = {
+        ...draft,
+        currentStep,
+        savedAt: new Date().toISOString(),
+      };
+      saveDraft(finalDraft);
       router.push('/prototipo/revision');
     }
   }
 
   function handleBack() {
+    if (!draft) return;
     if (currentStep > 0) {
       const prevStep = currentStep - 1;
       setCurrentStep(prevStep);
+
+      const updatedDraft: UpdateContactDraft = {
+        ...draft,
+        currentStep: prevStep,
+        savedAt: new Date().toISOString(),
+      };
+      setDraft(updatedDraft);
+      saveDraft(updatedDraft);
+
       tracker.track('form_step_changed', `paso_${prevStep + 1}`, {
         fromStep: currentStep + 1,
         toStep: prevStep + 1,
@@ -244,15 +259,24 @@ export default function FormularioPage() {
     }
   }
 
-  // ─── Progress indicator ─────────────────────────────────────────────────────
+  // ─── Progress indicator ───────────────────────────────────────────────────
   function renderProgressIndicator() {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>Paso {currentStep + 1} de {STEP_LABELS.length}</span>
+          <span>
+            Paso {currentStep + 1} de {STEP_LABELS.length}
+          </span>
           <span>{Math.round(((currentStep + 1) / STEP_LABELS.length) * 100)}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2" role="progressbar" aria-valuenow={currentStep + 1} aria-valuemin={1} aria-valuemax={STEP_LABELS.length} aria-label={`Paso ${currentStep + 1} de ${STEP_LABELS.length}: ${STEP_LABELS[currentStep]}`}>
+        <div
+          className="w-full bg-gray-200 rounded-full h-2"
+          role="progressbar"
+          aria-valuenow={currentStep + 1}
+          aria-valuemin={1}
+          aria-valuemax={STEP_LABELS.length}
+          aria-label={`Paso ${currentStep + 1} de ${STEP_LABELS.length}: ${STEP_LABELS[currentStep]}`}
+        >
           <div
             className="bg-alfa-green h-2 rounded-full transition-all duration-300"
             style={{ width: `${((currentStep + 1) / STEP_LABELS.length) * 100}%` }}
@@ -275,65 +299,43 @@ export default function FormularioPage() {
     );
   }
 
-  // ─── Step 1: Identificación ─────────────────────────────────────────────────
+  // ─── Step 1: Identificación ───────────────────────────────────────────────
   function renderStep1() {
+    const data = draft?.data ?? DEMO_DATA;
     return (
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-alfa-navy">
-          Datos de identificación
-        </h2>
+        <h2 className="text-lg font-semibold text-alfa-navy">Datos de identificación</h2>
         <p className="text-sm text-gray-600">
           Estos datos están pre-cargados para la demostración.
         </p>
-        <Input
-          label="Tipo de documento"
-          value={DEMO_IDENTIFICATION.documentType}
-          readOnly
-          disabled
-        />
-        <Input
-          label="Número de documento"
-          value={DEMO_IDENTIFICATION.documentNumber}
-          readOnly
-          disabled
-        />
-        <Input
-          label="Referencia de póliza"
-          value={DEMO_IDENTIFICATION.policyReference}
-          readOnly
-          disabled
-        />
+        <Input label="Tipo de documento" value={data.documentType} readOnly disabled />
+        <Input label="Número de documento" value={data.documentNumber} readOnly disabled />
+        <Input label="Referencia de póliza" value={data.policyReference} readOnly disabled />
       </div>
     );
   }
 
-  // ─── Step 2: Datos actuales ─────────────────────────────────────────────────
+  // ─── Step 2: Datos actuales ───────────────────────────────────────────────
   function renderStep2() {
+    const data = draft?.data ?? DEMO_DATA;
     return (
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-alfa-navy">
-          Datos de contacto actuales
-        </h2>
+        <h2 className="text-lg font-semibold text-alfa-navy">Datos de contacto actuales</h2>
         <p className="text-sm text-gray-600">
           Estos son los datos registrados actualmente en el sistema.
         </p>
-        <Input
-          label="Nombre completo"
-          value={DEMO_CURRENT_DATA.fullName}
-          readOnly
-          disabled
-        />
+        <Input label="Nombre completo" value={data.fullName} readOnly disabled />
         <Input
           label="Correo electrónico actual"
           type="email"
-          value={DEMO_CURRENT_DATA.currentEmail}
+          value={data.currentEmail ?? ''}
           readOnly
           disabled
         />
         <Input
           label="Teléfono actual"
           type="tel"
-          value={DEMO_CURRENT_DATA.currentPhone}
+          value={data.currentPhone ?? ''}
           readOnly
           disabled
         />
@@ -341,22 +343,19 @@ export default function FormularioPage() {
     );
   }
 
-  // ─── Step 3: Datos nuevos ───────────────────────────────────────────────────
+  // ─── Step 3: Datos nuevos ─────────────────────────────────────────────────
   function renderStep3() {
+    const data = draft?.data ?? DEMO_DATA;
     return (
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-alfa-navy">
-          Nuevos datos de contacto
-        </h2>
-        <p className="text-sm text-gray-600">
-          Ingresa los datos que deseas actualizar.
-        </p>
+        <h2 className="text-lg font-semibold text-alfa-navy">Nuevos datos de contacto</h2>
+        <p className="text-sm text-gray-600">Ingresa los datos que deseas actualizar.</p>
         <Input
           label="Correo electrónico nuevo"
           type="email"
           required
-          value={step3Data.newEmail}
-          onChange={(e) => handleStep3Change('newEmail', (e.target as HTMLInputElement).value)}
+          value={data.newEmail}
+          onChange={(e) => handleFieldChange('newEmail', (e.target as HTMLInputElement).value)}
           error={errors.newEmail}
           placeholder="nuevo@correo.com"
         />
@@ -364,8 +363,8 @@ export default function FormularioPage() {
           label="Confirmar correo electrónico"
           type="email"
           required
-          value={step3Data.confirmEmail}
-          onChange={(e) => handleStep3Change('confirmEmail', (e.target as HTMLInputElement).value)}
+          value={data.confirmEmail}
+          onChange={(e) => handleFieldChange('confirmEmail', (e.target as HTMLInputElement).value)}
           error={errors.confirmEmail}
           placeholder="nuevo@correo.com"
         />
@@ -373,8 +372,8 @@ export default function FormularioPage() {
           label="Teléfono nuevo"
           type="tel"
           required
-          value={step3Data.newPhone}
-          onChange={(e) => handleStep3Change('newPhone', (e.target as HTMLInputElement).value)}
+          value={data.newPhone}
+          onChange={(e) => handleFieldChange('newPhone', (e.target as HTMLInputElement).value)}
           error={errors.newPhone}
           placeholder="3001234567"
         />
@@ -382,8 +381,8 @@ export default function FormularioPage() {
           label="Ciudad"
           type="select"
           required
-          value={step3Data.city}
-          onChange={(e) => handleStep3Change('city', (e.target as HTMLSelectElement).value)}
+          value={data.city}
+          onChange={(e) => handleFieldChange('city', (e.target as HTMLSelectElement).value)}
           error={errors.city}
           options={COLOMBIAN_CITIES}
         />
@@ -391,8 +390,10 @@ export default function FormularioPage() {
           label="Preferencia de contacto"
           type="select"
           required
-          value={step3Data.contactPreference}
-          onChange={(e) => handleStep3Change('contactPreference', (e.target as HTMLSelectElement).value)}
+          value={data.contactPreference}
+          onChange={(e) =>
+            handleFieldChange('contactPreference', (e.target as HTMLSelectElement).value)
+          }
           error={errors.contactPreference}
           options={CONTACT_PREFERENCES}
         />
@@ -400,12 +401,21 @@ export default function FormularioPage() {
     );
   }
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // ─── Loading state ────────────────────────────────────────────────────────
+  if (!draft) {
+    return (
+      <main className="min-h-screen bg-alfa-surface flex items-center justify-center p-4">
+        <p className="text-gray-500">Cargando formulario...</p>
+      </main>
+    );
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-alfa-surface flex items-center justify-center p-4">
       <div className="max-w-lg w-full space-y-6">
         {/* Restore dialog */}
-        {showRestoreDialog && (
+        {showRestoreDialog && initialStep === undefined && (
           <Card variant="bordered" className="border-alfa-gold bg-amber-50">
             <div className="space-y-3">
               <p className="text-sm font-medium text-alfa-navy">
@@ -440,7 +450,7 @@ export default function FormularioPage() {
 
             {/* Navigation buttons */}
             <div className="flex justify-between pt-4 border-t border-gray-100">
-              {currentStep > 0 ? (
+              {currentStep > 0 && !returnTo ? (
                 <Button variant="ghost" onClick={handleBack}>
                   ← Atrás
                 </Button>
@@ -448,12 +458,27 @@ export default function FormularioPage() {
                 <div />
               )}
               <Button onClick={handleContinue}>
-                Continuar →
+                {returnTo === 'revision' ? 'Guardar y volver' : 'Continuar →'}
               </Button>
             </div>
           </div>
         </Card>
       </div>
     </main>
+  );
+}
+
+// ─── Page component with Suspense boundary for useSearchParams ──────────────
+export default function FormularioPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-alfa-surface flex items-center justify-center p-4">
+          <p className="text-gray-500">Cargando formulario...</p>
+        </main>
+      }
+    >
+      <FormularioContent />
+    </Suspense>
   );
 }

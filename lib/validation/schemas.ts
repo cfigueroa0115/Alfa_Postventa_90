@@ -80,7 +80,7 @@ export const trackingEventSchema = z.object({
 export const feedbackSchema = z.object({
   trackingCode: z
     .string()
-    .regex(/^DEMO-ALFA-\d{8}-\d{4}$/, 'Código de radicado inválido'),
+    .regex(/^DEMO-ALFA-\d{8}-[A-Z2-9]{6}$/, 'Código de radicado inválido'),
   cesScore: z
     .number()
     .int('La calificación debe ser un número entero')

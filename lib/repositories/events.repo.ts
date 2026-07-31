@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { trackingEvents, type TrackingEvent } from '@/db/schema';
-import { eq, desc, count, sql } from 'drizzle-orm';
+import { eq, desc, count } from 'drizzle-orm';
 
 export async function createEvent(data: {
   sessionId: string;

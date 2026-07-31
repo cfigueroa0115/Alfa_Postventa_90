@@ -206,7 +206,6 @@ export default function ConfirmacionPage() {
                         : 'bg-gray-100 text-gray-400 hover:bg-gray-200',
                   ].join(' ')}
                   aria-label={`${score} de 5`}
-                  aria-pressed={cesScore === score}
                   role="radio"
                   aria-checked={cesScore === score}
                 >

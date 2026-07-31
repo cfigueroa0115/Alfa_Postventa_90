@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { tracker } from '@/lib/analytics';
+import { loadDraft, clearDraft } from '@/lib/forms';
 import { Button, Card } from '@/components/ui';
 import type { UpdateContactFormData } from '@/lib/validation';
-
-const DRAFT_KEY = 'alfa_postventa_draft';
 
 const fieldLabels: Record<keyof UpdateContactFormData, string> = {
   documentType: 'Tipo de documento',
@@ -48,14 +47,9 @@ export default function RevisionPage() {
   const [errors, setErrors] = useState<ApiErrorDetail[]>([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem(DRAFT_KEY);
-    if (stored) {
-      try {
-        setFormData(JSON.parse(stored));
-      } catch {
-        // If parse fails, redirect back to form
-        router.push('/prototipo/formulario');
-      }
+    const draft = loadDraft();
+    if (draft && draft.data) {
+      setFormData(draft.data);
     } else {
       router.push('/prototipo/formulario');
     }
@@ -72,7 +66,9 @@ export default function RevisionPage() {
 
       const sessionId = sessionStorage.getItem('demo_session_id');
       if (!sessionId) {
-        setErrors([{ message: 'No se encontró la sesión activa. Por favor, reinicia el proceso.' }]);
+        setErrors([
+          { message: 'No se encontró la sesión activa. Por favor, reinicia el proceso.' },
+        ]);
         setLoading(false);
         return;
       }
@@ -88,16 +84,24 @@ export default function RevisionPage() {
         if (errorData.details && Array.isArray(errorData.details)) {
           setErrors(errorData.details);
         } else {
-          setErrors([{ message: errorData.error || 'Error al radicar la solicitud. Intenta de nuevo.' }]);
+          setErrors([
+            { message: errorData.error || 'Error al radicar la solicitud. Intenta de nuevo.' },
+          ]);
         }
         setLoading(false);
         return;
       }
 
       const data = await response.json();
+
+      // Clear draft on successful submission
+      clearDraft();
+
       router.push(`/prototipo/confirmacion/${data.trackingCode}`);
     } catch {
-      setErrors([{ message: 'Error de conexión. Verifica tu conexión a internet e intenta de nuevo.' }]);
+      setErrors([
+        { message: 'Error de conexión. Verifica tu conexión a internet e intenta de nuevo.' },
+      ]);
       setLoading(false);
     }
   }
@@ -105,7 +109,8 @@ export default function RevisionPage() {
   function formatValue(key: keyof UpdateContactFormData, value: unknown): string {
     if (value === undefined || value === null || value === '') return '—';
     if (key === 'documentType') return documentTypeLabels[value as string] || (value as string);
-    if (key === 'contactPreference') return contactPreferenceLabels[value as string] || (value as string);
+    if (key === 'contactPreference')
+      return contactPreferenceLabels[value as string] || (value as string);
     return String(value);
   }
 
@@ -132,7 +137,13 @@ export default function RevisionPage() {
     {
       title: 'Nuevos datos de contacto',
       step: 3,
-      fields: ['newEmail', 'confirmEmail', 'newPhone', 'city', 'contactPreference'] as (keyof UpdateContactFormData)[],
+      fields: [
+        'newEmail',
+        'confirmEmail',
+        'newPhone',
+        'city',
+        'contactPreference',
+      ] as (keyof UpdateContactFormData)[],
     },
   ];
 
@@ -140,9 +151,7 @@ export default function RevisionPage() {
     <main className="min-h-screen bg-alfa-surface flex items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-alfa-navy">
-            Revisa tu solicitud
-          </h1>
+          <h1 className="text-2xl font-bold text-alfa-navy">Revisa tu solicitud</h1>
           <p className="text-gray-600">
             Verifica que la información sea correcta antes de enviar.
           </p>
@@ -153,7 +162,7 @@ export default function RevisionPage() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-alfa-navy">{section.title}</h2>
               <a
-                href={`/prototipo/formulario?step=${section.step}`}
+                href={`/prototipo/formulario?step=${section.step}&returnTo=revision`}
                 className="text-sm text-alfa-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alfa-green rounded"
               >
                 Editar
@@ -174,10 +183,7 @@ export default function RevisionPage() {
 
         {/* Consent section */}
         <Card variant="bordered" className="space-y-4">
-          <label
-            className="flex items-start gap-3 cursor-pointer"
-            htmlFor="consent-checkbox"
-          >
+          <label className="flex items-start gap-3 cursor-pointer" htmlFor="consent-checkbox">
             <input
               id="consent-checkbox"
               type="checkbox"
@@ -187,7 +193,8 @@ export default function RevisionPage() {
               aria-required="true"
             />
             <span className="text-sm text-alfa-navy">
-              Autorizo el tratamiento de los datos proporcionados en este formulario de demostración
+              Autorizo el tratamiento de los datos proporcionados en este formulario de
+              demostración
             </span>
           </label>
         </Card>
@@ -201,7 +208,9 @@ export default function RevisionPage() {
           >
             {errors.map((err, idx) => (
               <p key={idx} className="text-sm">
-                {err.field ? `${fieldLabels[err.field as keyof UpdateContactFormData] || err.field}: ` : ''}
+                {err.field
+                  ? `${fieldLabels[err.field as keyof UpdateContactFormData] || err.field}: `
+                  : ''}
                 {err.message}
               </p>
             ))}

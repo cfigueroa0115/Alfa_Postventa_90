@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { tracker } from '@/lib/analytics';
 import { Button, Card, Input } from '@/components/ui';
 
-const TRACKING_CODE_REGEX = /^DEMO-ALFA-\d{8}-\d{4}$/;
+const TRACKING_CODE_REGEX = /^DEMO-ALFA-\d{8}-[A-Z2-9]{6}$/;
 
 export default function SeguimientoPage() {
   const router = useRouter();
@@ -28,7 +28,7 @@ export default function SeguimientoPage() {
     }
 
     if (!TRACKING_CODE_REGEX.test(trimmed)) {
-      setError('Formato inválido. El código debe ser: DEMO-ALFA-XXXXXXXX-XXXX');
+      setError('Formato inválido. El código debe ser: DEMO-ALFA-XXXXXXXX-XXXXXX');
       return;
     }
 
@@ -55,13 +55,13 @@ export default function SeguimientoPage() {
               type="text"
               value={trackingCode}
               onChange={handleChange}
-              placeholder="DEMO-ALFA-20260715-0001"
+              placeholder="DEMO-ALFA-20260715-A3B7K2"
               error={error || undefined}
               required
               aria-describedby="tracking-format-hint"
             />
             <p id="tracking-format-hint" className="text-xs text-gray-400">
-              Formato: DEMO-ALFA-YYYYMMDD-XXXX
+              Formato: DEMO-ALFA-YYYYMMDD-XXXXXX
             </p>
 
             <Button

@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { demoRequests, type DemoRequest } from '@/db/schema';
-import { eq, count, sql, and, gte, lt } from 'drizzle-orm';
+import { eq, count, and, gte, lt } from 'drizzle-orm';
 
 export async function createRequest(data: {
   sessionId: string;

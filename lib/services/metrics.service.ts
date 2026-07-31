@@ -1,4 +1,4 @@
-import { eventsRepo, requestsRepo, feedbackRepo } from '@/lib/repositories';
+import { eventsRepo, feedbackRepo } from '@/lib/repositories';
 
 export interface MetricsData {
   kpis: {
@@ -18,7 +18,6 @@ export interface MetricsData {
 
 export async function getMetrics(): Promise<MetricsData> {
   const eventCounts = await eventsRepo.countEventsByType();
-  const totalRequests = await requestsRepo.getTotalRequests();
   const averageCES = await feedbackRepo.getAverageCES();
 
   const totalSessions = eventCounts.find((e) => e.eventType === 'journey_started')?.count ?? 0;
