@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --alfa-green: #009A76;
+  --alfa-navy: #0B2A55;
+  --alfa-navy-dark: #071C3F;
+  --alfa-gold: #D89A1D;
+  --alfa-background: #F7F9FC;
+  --alfa-surface: #FFFFFF;
+  --alfa-text: #0C2446;
+  --alfa-muted: #64748B;
+  --alfa-error: #C62828;
+  --alfa-warning: #D68A00;
+  --alfa-success: #087A55;
+}
+
+body {
+  color: var(--alfa-text);
+  background: var(--alfa-background);
+  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
