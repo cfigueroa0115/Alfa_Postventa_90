@@ -87,27 +87,35 @@ export async function createRequestIdempotently(data: {
   status?: string;
   idempotencyKey: string;
 }): Promise<{ request: DemoRequest; created: boolean }> {
-  // Try to insert - onConflictDoNothing for idempotency_key
-  const [inserted] = await db
-    .insert(demoRequests)
-    .values({
-      sessionId: data.sessionId,
-      trackingCode: data.trackingCode,
-      formData: data.formData,
-      status: data.status ?? 'radicado',
-      idempotencyKey: data.idempotencyKey,
-    })
-    .onConflictDoNothing()
-    .returning();
-
-  if (inserted) {
-    return { request: inserted, created: true };
-  }
-
-  // Conflict means it already exists
+  // First check if this idempotency key already exists
   const existing = await getRequestByIdempotencyKey(data.idempotencyKey);
-  if (!existing) {
-    throw new Error('Error de concurrencia al crear la solicitud');
+  if (existing) {
+    return { request: existing, created: false };
   }
-  return { request: existing, created: false };
+
+  // Try to insert - if unique constraint violation occurs, fetch existing
+  try {
+    const [inserted] = await db
+      .insert(demoRequests)
+      .values({
+        sessionId: data.sessionId,
+        trackingCode: data.trackingCode,
+        formData: data.formData,
+        status: data.status ?? 'radicado',
+        idempotencyKey: data.idempotencyKey,
+      })
+      .returning();
+
+    return { request: inserted, created: true };
+  } catch (error: unknown) {
+    // Handle unique constraint violation (concurrent request)
+    const errorMessage = error instanceof Error ? error.message : '';
+    if (errorMessage.includes('unique') || errorMessage.includes('duplicate')) {
+      const existingAfterConflict = await getRequestByIdempotencyKey(data.idempotencyKey);
+      if (existingAfterConflict) {
+        return { request: existingAfterConflict, created: false };
+      }
+    }
+    throw error;
+  }
 }
