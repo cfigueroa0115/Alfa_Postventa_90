@@ -60,14 +60,6 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    // In non-production, include error details for debugging
-    if (error instanceof Error && process.env.APP_ENV !== 'production') {
-      console.error('[API /api/requests]', error.message);
-      return NextResponse.json(
-        { error: error.message, code: 'DEBUG', stack: error.stack?.split('\n').slice(0, 5) },
-        { status: 500 }
-      );
-    }
     return handleApiError(error);
   }
 }
