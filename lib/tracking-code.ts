@@ -1,8 +1,7 @@
-import crypto from 'crypto';
-
 /**
- * Generates a tracking code with format DEMO-ALFA-YYYYMMDD-XXXXXX
- * where XXXXXX is a random 6-char alphanumeric string (uppercase)
+ * Utilidades para generación de códigos de radicado.
+ * Formato: DEMO-ALFA-YYYYMMDD-XXXXXX
+ * donde XXXXXX es un código alfanumérico aleatorio de 6 caracteres
  */
 export function generateTrackingCode(date: Date = new Date()): string {
   const year = date.getFullYear();
@@ -11,9 +10,9 @@ export function generateTrackingCode(date: Date = new Date()): string {
 
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid ambiguous chars (0/O, 1/I)
   let random = '';
-  const bytes = crypto.randomBytes(6);
+  // Use Math.random as fallback for environments without crypto
   for (let i = 0; i < 6; i++) {
-    random += chars[bytes[i] % chars.length];
+    random += chars[Math.floor(Math.random() * chars.length)];
   }
 
   return `DEMO-ALFA-${year}${month}${day}-${random}`;
